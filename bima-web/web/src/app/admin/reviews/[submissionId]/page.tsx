@@ -28,6 +28,16 @@ import {
   FileImage,
 } from 'lucide-react';
 
+/** Balasan non-JSON (mis. halaman galat HTML dari Next.js) tidak boleh dilaporkan sebagai "koneksi error". */
+async function readJsonSafe(res: Response): Promise<{ error?: string }> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: res.ok ? undefined : `Server membalas bukan JSON (HTTP ${res.status}). Lihat terminal server web.` };
+  }
+}
+
 export default function AdminReviewDetailPage() {
   const toast = useToast();
   const params = useParams();
@@ -94,17 +104,17 @@ export default function AdminReviewDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: approveNotes }),
       });
-      const data = await res.json();
+      const data = await readJsonSafe(res);
       if (res.ok) {
         setApproveModalOpen(false);
         toast.success('Sesi survei resmi disetujui dan masuk ke agregat pemantauan wilayah!', 'Survei Disetujui');
         setAlertMsg({ type: 'success', message: 'Sesi survei resmi disetujui!' });
         fetchDetail();
       } else {
-        toast.error(data.error || 'Gagal menyetujui survei.');
+        toast.error(data.error || `Gagal menyetujui survei (HTTP ${res.status}).`);
       }
-    } catch {
-      toast.error('Koneksi error saat menyetujui survei.');
+    } catch (err: any) {
+      toast.error(`Permintaan setujui tidak sampai ke server web (${err?.message ?? 'jaringan terputus'}). Pastikan server Next.js masih berjalan, lalu muat ulang halaman.`);
     } finally {
       setActionLoading(false);
     }
@@ -124,17 +134,17 @@ export default function AdminReviewDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rejectReason, reviewNotes: rejectNotes }),
       });
-      const data = await res.json();
+      const data = await readJsonSafe(res);
       if (res.ok) {
         setRejectModalOpen(false);
         toast.info('Survei ditolak dan catatan perbaikan telah dikirim ke surveyor.', 'Survei Dikembalikan');
         setAlertMsg({ type: 'success', message: 'Survei ditolak dan catatan telah dikirim ke surveyor.' });
         fetchDetail();
       } else {
-        toast.error(data.error || 'Gagal menolak survei.');
+        toast.error(data.error || `Gagal menolak survei (HTTP ${res.status}).`);
       }
-    } catch {
-      toast.error('Koneksi error saat menolak survei.');
+    } catch (err: any) {
+      toast.error(`Permintaan tolak tidak sampai ke server web (${err?.message ?? 'jaringan terputus'}). Pastikan server Next.js masih berjalan, lalu muat ulang halaman.`);
     } finally {
       setActionLoading(false);
     }
