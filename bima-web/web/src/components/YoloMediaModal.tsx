@@ -5,7 +5,7 @@ import { Calendar, Clock, Cpu, FileImage, Info, Layers, MapPin, X } from 'lucide
 import FrameGallery from './FrameGallery';
 import FindingLocationMap from './FindingLocationMap';
 import { ClipEvaluationBadge, NarrativePanel } from './ClipEvaluation';
-import { ComplianceBadge, ConditionBadge, RiskBadge } from './RiskBadge';
+import { ComplianceBadge, ConditionBadge, NOTICE_OCR_LABEL, OcrBadge, RiskBadge } from './RiskBadge';
 import { formatTimestamp, parseBBox, reviewLabel, type DetectionView, type EvaluatedClipView, type FrameView } from '@/lib/media-view';
 import { EXPOSURE_LABEL, SEVERITY_LABEL, type Exposure, type Severity } from '@/lib/risk';
 
@@ -181,7 +181,14 @@ export default function YoloMediaModal({ media, detections, session, onClose }: 
                         <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
                           {infra ? (d.conditionLabel === 'normal' ? null : <RiskBadge score={d.riskScore} band={d.priorityBand} severity={d.severity} exposure={d.exposure} source={d.severitySource} />) : <ComplianceBadge />}
                           {d.classDefinition?.hasConditionStage && <ConditionBadge label={d.conditionLabel} tag={d.conditionTag} />}
+                          {d.classDefinition?.hasOcrStage && <OcrBadge label={d.ocrLabel} text={d.ocrText} manualCheck={d.ocrManualCheck} />}
                         </div>
+                        {d.classDefinition?.hasOcrStage && d.ocrLabel && (
+                          <p className="mb-2.5 break-words text-[11px] text-zinc-500" title={NOTICE_OCR_LABEL}>
+                            Teks terbaca: {d.ocrText?.trim() ? <span className="font-mono text-zinc-700">&ldquo;{d.ocrText.trim()}&rdquo;</span> : <span className="italic">tidak ada teks terbaca</span>}
+                            {typeof d.ocrConfidence === 'number' && <> · keyakinan OCR {d.ocrConfidence.toFixed(2)}</>}
+                          </p>
+                        )}
                         {infra && d.severity && d.conditionLabel !== 'normal' && (
                           <p className="mb-2.5 text-[11px] text-zinc-500">
                             Severity {SEVERITY_LABEL[d.severity as Severity]} ({d.severity})

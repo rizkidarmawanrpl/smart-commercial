@@ -78,6 +78,7 @@ export async function runYoloJob(params: {
         conflict_iou_threshold: c.conflictIouThreshold,
         model_class: c.modelClass,
         has_condition_stage: c.hasConditionStage,
+        has_ocr_stage: c.hasOcrStage,
       })),
       conflict_threshold: requireEnvNumber('DEFAULT_CONFLICT_IOU_THRESHOLD'),
       // Nama model dari menu Model AI: ai-service memilih baseline atau varian ablasi (attention) berdasarkan nama ini.
@@ -118,6 +119,8 @@ export async function runYoloJob(params: {
         if (!cls) return [];
         // Tahap 2 (rambu): normal = tanpa skor; damaged = severity sementara kelas sampai supervisor memilih tag subtipe.
         const condition = cls.hasConditionStage ? det.condition_state ?? null : null;
+        // Tahap 2 notis: hasil OCR hanya dicatat bila kelasnya memintanya dan ai-service benar-benar menjalankannya.
+        const ocr = cls.hasOcrStage && det.ocr_label ? det : null;
         const risk = riskFields(cls, exposure, { condition });
         return [
           {
@@ -145,6 +148,11 @@ export async function runYoloJob(params: {
             priorityBand: risk.priorityBand,
             conditionLabel: condition,
             conditionModel: condition ? det.condition_model ?? null : null,
+            ocrLabel: ocr?.ocr_label ?? null,
+            ocrText: ocr?.ocr_text ?? null,
+            ocrConfidence: ocr?.ocr_confidence ?? null,
+            ocrManualCheck: Boolean(ocr?.ocr_manual_check),
+            ocrModel: ocr?.ocr_model ?? null,
             hasConflict: Boolean(det.has_conflict),
             conflictResolved: false,
             conflictDetails: JSON.stringify(det.conflict_details || {}),

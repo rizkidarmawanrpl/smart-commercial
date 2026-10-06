@@ -41,6 +41,7 @@ model ClassDefinition {
   categoryGroup         String? // "keselamatan_infrastruktur" | "monitoring_kepatuhan" (null = belum dikelompokkan)
   defaultSeverity       Int? // 1-3; null untuk monitoring_kepatuhan (tidak dapat skor risiko)
   hasConditionStage     Boolean                  @default(false) // Tahap 2: kondisi (normal/damaged) diklasifikasi per crop; hanya rambu (sign)
+  hasOcrStage           Boolean                  @default(false) // Tahap 2: teks notis dibaca OCR per crop (jual/sewa); hanya house_notice
   conditionTags         ConditionTag[]
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
@@ -158,6 +159,11 @@ model Detection {
   conditionLabel   String? // Tahap 2 (kelas dengan hasConditionStage): "normal" | "damaged"; null = belum diklasifikasi
   conditionModel   String? // Model Tahap 2 yang menghasilkan label (mis. "sign_classifier_fold0")
   conditionTagId   String? // Tag subtipe kerusakan yang ditetapkan supervisor (rambu rusak)
+  ocrLabel         String? // Tahap 2 notis (kelas dengan hasOcrStage): "sale_or_rent" | "tidak_teridentifikasi"; null = OCR tidak dijalankan
+  ocrText          String? // teks mentah hasil OCR pada crop notis
+  ocrConfidence    Float? // rata-rata confidence EasyOCR (0-1)
+  ocrManualCheck   Boolean                 @default(false) // crop kecil (sisi pendek <= 320 px): teks sulit terbaca, perlu dicek manual
+  ocrModel         String? // model Tahap 2 notis (mis. "easyocr_id_en_keyword")
   exposure         Int? // 1-3, disalin dari zona sesi saat temuan dibuat
   riskScore        Int? // severity x exposure: 1,2,3,4,6,9
   priorityBand     String? // "rendah" | "sedang" | "tinggi" | "kritikal"

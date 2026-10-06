@@ -36,7 +36,8 @@ from providers.base import BaseVisionProvider
 from providers.openrouter import OpenRouterProvider
 from providers.onpremise import OnPremiseProvider
 from providers.mock import MockVisionProvider
-from providers.yolo import YoloProvider, decode_image, to_detection_items, wants_condition_stage
+from providers.yolo import YoloProvider, decode_image, to_detection_items, wants_condition_stage, wants_ocr_stage
+from services.notice_ocr import NOTICE_OCR_MODEL_ID, notice_ocr, read_notices
 from services.sign_condition import STAGE2_MODEL_ID, classifier as sign_classifier, classify_signs
 from services.deduplication import deduplicate_temporal_detections
 from services.conflict_detector import detect_class_conflicts
@@ -187,12 +188,17 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
         inference_ms = 0.0
         stage2_ms = 0.0
         stage2_crops = 0
+        ocr_ms = 0.0
+        ocr_crops = 0
         use_stage2 = wants_condition_stage(req.active_classes)
+        use_ocr = wants_ocr_stage(req.active_classes)
 
         # Muat model lebih dulu agar waktu muat tidak tercampur ke metrik unduh/inferensi.
         model_set = await asyncio.to_thread(yolo_engine.load, req.model_name)
         if use_stage2:
             await asyncio.to_thread(sign_classifier.load)  # galat konfigurasi muncul di sini, bukan di tengah proses
+        if use_ocr:
+            await asyncio.to_thread(notice_ocr.load)  # unduh/muat model OCR di sini, tidak tercampur ke waktu inferensi
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             for fr in req.frames:
@@ -214,7 +220,14 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
                     stage2_ms += (time.perf_counter() - t2) * 1000.0
                     stage2_crops += len(conditions)
 
-                items = to_detection_items(raw, req.active_classes, fr.timestamp_seconds, fr.frame_index, conditions)
+                ocr = None
+                if use_ocr:
+                    t3 = time.perf_counter()
+                    ocr = await asyncio.to_thread(read_notices, img, raw)
+                    ocr_ms += (time.perf_counter() - t3) * 1000.0
+                    ocr_crops += len(ocr)
+
+                items = to_detection_items(raw, req.active_classes, fr.timestamp_seconds, fr.frame_index, conditions, ocr)
                 for it in items:
                     by_class[it.class_name] = by_class.get(it.class_name, 0) + 1
                 detections.extend(items)
@@ -235,6 +248,9 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
                 stage2_ms=round(stage2_ms, 1),
                 stage2_crops=stage2_crops,
                 stage2_model=STAGE2_MODEL_ID if use_stage2 else None,
+                ocr_ms=round(ocr_ms, 1),
+                ocr_crops=ocr_crops,
+                ocr_model=NOTICE_OCR_MODEL_ID if use_ocr else None,
                 detections_by_class=by_class,
                 missing_models=model_set.missing,
                 model_name=model_set.name,
@@ -348,6 +364,8 @@ async def test_connection(
             if st["fallback"]:
                 msg += f" Kategori {', '.join(st['fallback'])} belum punya bobot varian ini dan dilayani baseline."
         msg += (" Tahap 2 rambu: siap." if s2["enabled"] and s2["present"] else " Tahap 2 rambu: bobot tidak ditemukan." if s2["enabled"] else " Tahap 2 rambu: nonaktif.")
+        ocr_st = notice_ocr.status()
+        msg += f" OCR notis: {ocr_st['detail']}."
         return TestConnectionResponse(success=bool(st["present"]), message=msg,
                                       latency_ms=round((time.time() - start_time) * 1000, 2))
     try:

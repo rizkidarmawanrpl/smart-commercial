@@ -23,6 +23,12 @@ class DetectionItem(BaseModel):
     condition_state: Optional[str] = None  # Tahap 2: "normal" | "damaged"; None = tidak diklasifikasi
     condition_model: Optional[str] = None  # model Tahap 2 yang menghasilkan condition_state
     served_by: Optional[str] = None  # nama model YOLO (baseline/varian) yang benar-benar menghasilkan kotak ini
+    ocr_label: Optional[str] = None  # Tahap 2 notis: "sale_or_rent" | "tidak_teridentifikasi"; None = OCR tidak dijalankan
+    ocr_text: Optional[str] = None  # teks mentah hasil OCR pada crop notis
+    ocr_confidence: Optional[float] = None  # rata-rata confidence EasyOCR (0-1)
+    ocr_matched_roots: List[str] = Field(default_factory=list)  # akar kata yang cocok ("jual", "sewa")
+    ocr_manual_check: bool = False  # crop kecil (sisi pendek <= 320 px): teks sulit terbaca, perlu dicek manual
+    ocr_model: Optional[str] = None  # model Tahap 2 notis yang menghasilkan ocr_label
 
 class DetectionSchema(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
@@ -42,6 +48,7 @@ class ClassDef(BaseModel):
     sam_color: Optional[str] = None   # "#RRGGBB" overlay color for SAM3 results
     model_class: Optional[str] = None  # YOLO output class name (e.g. "pavedroad_pothole"); falls back to `name`
     has_condition_stage: bool = False  # Tahap 2: kondisi (normal/damaged) diklasifikasi per crop (hanya rambu)
+    has_ocr_stage: bool = False  # Tahap 2: teks notis dibaca dengan OCR per crop (hanya house_notice)
 
 class ModelConfigPayload(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
@@ -117,6 +124,9 @@ class YoloDetectMetrics(BaseModel):
     stage2_ms: float = 0.0  # total waktu klasifikasi kondisi (Tahap 2)
     stage2_crops: int = 0  # jumlah crop yang diklasifikasi
     stage2_model: Optional[str] = None  # None bila Tahap 2 tidak aktif
+    ocr_ms: float = 0.0  # total waktu OCR notis
+    ocr_crops: int = 0  # jumlah crop notis yang dibaca
+    ocr_model: Optional[str] = None  # None bila OCR notis tidak aktif
     missing_models: List[str] = Field(default_factory=list)
     model_name: Optional[str] = None  # model yang benar-benar dipakai (baseline atau varian)
     fallback_models: List[str] = Field(default_factory=list)  # kategori yang dilayani baseline karena varian belum punya bobot

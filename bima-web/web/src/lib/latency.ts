@@ -9,12 +9,12 @@ export const TARGET_MS = 5 * 60 * 1000;
 
 export interface RawMetrics {
   upload?: { compressAndExtractMs?: number; frameExtractMs?: number; uploadMs?: number };
-  yolo?: { download_ms?: number; inference_ms?: number; stage2_ms?: number; stage2_crops?: number; total_ms?: number; per_model_ms?: Record<string, number>; frames?: number; model_name?: string; fallback_models?: string[] };
+  yolo?: { download_ms?: number; inference_ms?: number; stage2_ms?: number; stage2_crops?: number; total_ms?: number; per_model_ms?: Record<string, number>; frames?: number; model_name?: string; fallback_models?: string[]; ocr_ms?: number; ocr_crops?: number };
   persistMs?: number;
   processTotalMs?: number;
 }
 
-export const STAGES = ['kompresi', 'ekstraksi_frame', 'simpan_berkas', 'unduh_frame', 'inferensi', 'klasifikasi_kondisi', 'simpan_hasil'] as const;
+export const STAGES = ['kompresi', 'ekstraksi_frame', 'simpan_berkas', 'unduh_frame', 'inferensi', 'klasifikasi_kondisi', 'ocr_notis', 'simpan_hasil'] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
@@ -24,6 +24,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   unduh_frame: 'Baca frame (ai-service)',
   inferensi: 'Inferensi YOLO (6 model)',
   klasifikasi_kondisi: 'Klasifikasi kondisi rambu (Tahap 2)',
+  ocr_notis: 'OCR teks notis (Tahap 2)',
   simpan_hasil: 'Simpan temuan & skor risiko',
 };
 
@@ -65,6 +66,7 @@ export function mediaLatency(m: RawMetrics | null): MediaLatency | null {
   if (num(m.yolo?.inference_ms) !== undefined) stages.inferensi = m.yolo!.inference_ms!;
   // Hanya dicatat bila Tahap 2 berjalan; media tanpa rambu/ tanpa Tahap 2 tidak memiliki tahap ini.
   if ((num(m.yolo?.stage2_crops) ?? 0) > 0 && num(m.yolo?.stage2_ms) !== undefined) stages.klasifikasi_kondisi = m.yolo!.stage2_ms!;
+  if ((num(m.yolo?.ocr_crops) ?? 0) > 0 && num(m.yolo?.ocr_ms) !== undefined) stages.ocr_notis = m.yolo!.ocr_ms!;
   if (num(m.persistMs) !== undefined) stages.simpan_hasil = m.persistMs!;
   const detected = m.yolo !== undefined;
   const totalMs = detected ? Object.values(stages).reduce((n, v) => n + (v ?? 0), 0) : null;

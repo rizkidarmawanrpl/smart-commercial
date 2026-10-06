@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 import FrameGallery from '@/components/FrameGallery';
 import VideoWithBoxes from '@/components/VideoWithBoxes';
 import { ClipEvaluationBadge, NarrativePanel } from '@/components/ClipEvaluation';
-import { ComplianceBadge, ConditionBadge, RiskBadge } from '@/components/RiskBadge';
+import { ComplianceBadge, ConditionBadge, NOTICE_OCR_LABEL, OcrBadge, RiskBadge } from '@/components/RiskBadge';
 import CorrectionsLog from '@/components/CorrectionsLog';
 import { useToast } from '@/components/ToastProvider';
 import { CONDITION_MODEL_LABEL, EXPOSURE_LABEL, SEVERITY_LABEL, type Exposure, type Severity } from '@/lib/risk';
@@ -212,11 +212,19 @@ function CorrectionForm({ detection: d, classes, tags, busy, onSubmit }: { detec
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {infra ? (isNormalSign ? null : <RiskBadge score={d.riskScore} band={d.priorityBand} severity={d.severity} exposure={d.exposure} source={d.severitySource} />) : <ComplianceBadge />}
           {hasStage && <ConditionBadge label={d.conditionLabel} tag={d.conditionTag} />}
+          {d.classDefinition?.hasOcrStage && <OcrBadge label={d.ocrLabel} text={d.ocrText} manualCheck={d.ocrManualCheck} />}
           <span className="font-mono text-zinc-500">conf {d.confidence?.toFixed(2) ?? '-'}</span>
           <span className="text-zinc-500">status: {d.reviewStatus.replace('_', ' ')}</span>
         </div>
         {infra && d.severity && !isNormalSign && <div className="mt-1 text-zinc-500">Severity {SEVERITY_LABEL[d.severity as Severity]} ({d.severity}) — {SOURCE_TEXT[d.severitySource] ?? d.severitySource}</div>}
         {hasStage && !d.conditionLabel && <div className="mt-1 text-amber-700">Kondisi rambu belum diklasifikasi (Tahap 2 tidak aktif saat deteksi).</div>}
+        {d.classDefinition?.hasOcrStage && !d.ocrLabel && <div className="mt-1 text-amber-700">Teks notis belum dibaca (OCR tidak aktif saat deteksi).</div>}
+        {d.classDefinition?.hasOcrStage && d.ocrLabel && (
+          <div className="mt-1 break-words text-zinc-500" title={NOTICE_OCR_LABEL}>
+            Teks terbaca: {d.ocrText?.trim() ? <span className="font-mono text-zinc-700">&ldquo;{d.ocrText.trim()}&rdquo;</span> : <span className="italic">tidak ada teks terbaca</span>}
+            {typeof d.ocrConfidence === 'number' && <> · keyakinan OCR {d.ocrConfidence.toFixed(2)}</>}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">

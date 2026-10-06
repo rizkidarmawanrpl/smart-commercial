@@ -25,6 +25,12 @@ export interface DetectionView {
   /** Tahap 2 (rambu): hasil classifier atau koreksi supervisor; null = belum diklasifikasi / bukan rambu. */
   conditionLabel?: 'normal' | 'damaged' | string | null;
   conditionModel?: string | null;
+  /** Tahap 2 notis (house_notice): hasil OCR; null = OCR tidak dijalankan saat deteksi. */
+  ocrLabel?: 'sale_or_rent' | 'tidak_teridentifikasi' | string | null;
+  ocrText?: string | null;
+  ocrConfidence?: number | null;
+  ocrManualCheck?: boolean;
+  ocrModel?: string | null;
   conditionTag?: { id: string; code: string; label: string; severity: number } | null;
   classDefinition?: {
     id: string;
@@ -32,6 +38,7 @@ export interface DetectionView {
     category: string | null;
     categoryGroup: string | null;
     hasConditionStage?: boolean;
+    hasOcrStage?: boolean;
   } | null;
 }
 

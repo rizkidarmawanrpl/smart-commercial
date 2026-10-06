@@ -85,3 +85,30 @@ export function ConditionBadge({ label, tag }: { label: string | null | undefine
   }
   return null;
 }
+
+export const NOTICE_OCR_LABEL = 'EasyOCR (id+en) + pencocokan kata kunci jual/sewa';
+
+/**
+ * Hasil Tahap 2 notis (OCR). Informatif: tidak memengaruhi skor (kelas Monitoring Kepatuhan tidak diberi skor risiko).
+ * null = OCR tidak dijalankan saat deteksi, jadi tidak ditampilkan (bukan "tidak teridentifikasi").
+ */
+export function OcrBadge({ label, text, manualCheck }: { label: string | null | undefined; text?: string | null; manualCheck?: boolean }) {
+  if (label !== 'sale_or_rent' && label !== 'tidak_teridentifikasi') return null;
+  const sale = label === 'sale_or_rent';
+  const title = `${NOTICE_OCR_LABEL}. Teks terbaca: ${text?.trim() ? `"${text.trim()}"` : '(kosong)'}`;
+  return (
+    <>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${sale ? 'border-cyan-300 bg-cyan-50 text-cyan-800' : 'border-slate-200 bg-slate-50 text-slate-600'}`}
+        title={title}
+      >
+        {sale ? 'Notis jual/sewa' : 'Teks tidak teridentifikasi'}
+      </span>
+      {manualCheck && (
+        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800" title="Crop notis kecil (sisi pendek ≤ 320 px): teks sulit terbaca, periksa manual">
+          Cek manual
+        </span>
+      )}
+    </>
+  );
+}

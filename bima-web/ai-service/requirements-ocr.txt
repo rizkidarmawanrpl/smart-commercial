@@ -1,0 +1,6 @@
+# Tahap 2 notis (house_notice): OCR teks jual/sewa. Opsional; hanya dipakai bila NOTICE_OCR_ENABLED=true.
+# Pasang torch lebih dulu (lihat requirements-yolo.txt), lalu:  pip install -r requirements-ocr.txt
+# Model OCR (craft_mlt_25k.pth + latin_g2.pth, ±98 MB) diunduh EasyOCR sekali saat pertama dipakai (perlu internet),
+# atau letakkan di NOTICE_OCR_MODEL_DIR agar tidak diunduh.
+easyocr>=1.7.2
+rapidfuzz>=3.0

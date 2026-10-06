@@ -67,3 +67,12 @@ test('nama model YOLO dibaca dari metrik; media lama tanpa nama = baseline (null
   assert.equal(yoloModelName(parseMetrics('bukan json')), null);
   assert.equal(yoloModelName(null), null);
 });
+
+test('tahap OCR notis hanya dicatat bila ada crop yang dibaca', () => {
+  const base = { yolo: { download_ms: 10, inference_ms: 100 }, persistMs: 5 };
+  const withOcr = mediaLatency({ ...base, yolo: { ...base.yolo, ocr_ms: 1400, ocr_crops: 2 } })!;
+  assert.equal(withOcr.stages.ocr_notis, 1400);
+  assert.equal(withOcr.totalMs, 10 + 100 + 1400 + 5);
+  const noCrops = mediaLatency({ ...base, yolo: { ...base.yolo, ocr_ms: 0, ocr_crops: 0 } })!;
+  assert.equal(noCrops.stages.ocr_notis, undefined);
+});

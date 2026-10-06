@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { formatTimestamp, parseBBox, reviewLabel, visibleBoxes, type DetectionView, type FrameView, type GalleryMode } from '@/lib/media-view';
 import { BAND_LABEL, CONDITION_MODEL_LABEL, GROUP_LABEL } from '@/lib/risk';
 import { classColor, readableTextColor } from '@/lib/class-colors';
-import { BAND_STYLE, ComplianceBadge, ConditionBadge, RiskBadge } from './RiskBadge';
+import { BAND_STYLE, ComplianceBadge, ConditionBadge, OcrBadge, RiskBadge } from './RiskBadge';
 
 export type BulkKind = 'dikonfirmasi' | 'keliru';
 
@@ -258,6 +258,7 @@ export default function FrameGallery({ frames, detections, initialMinConfidence 
                       <RiskBadge score={d.riskScore} band={d.priorityBand} severity={d.severity} exposure={d.exposure} source={d.severitySource} />
                     )}
                     {d.classDefinition?.hasConditionStage && <ConditionBadge label={d.conditionLabel} tag={d.conditionTag} />}
+                    {d.classDefinition?.hasOcrStage && <OcrBadge label={d.ocrLabel} text={d.ocrText} manualCheck={d.ocrManualCheck} />}
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${rv.tone === 'benar' ? 'bg-emerald-100 text-emerald-800' : rv.tone === 'keliru' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-800'}`}>{rv.text}</span>
                   </button>
                 </li>

@@ -94,6 +94,7 @@ async function main() {
       defaultSeverity: p.severity,
       samColor: SAM_COLORS[p.subtype],
       hasConditionStage: p.subtype === 'sign', // Tahap 2 (klasifikasi kondisi) hanya rambu
+      hasOcrStage: p.subtype === 'house_notice', // Tahap 2 (OCR teks jual/sewa) hanya notis rumah
       isActive: true,
     };
     // Saat seed diulang, Severity bawaan dan kelompok yang sudah diubah admin TIDAK ditimpa.
