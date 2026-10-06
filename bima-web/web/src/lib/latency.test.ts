@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TARGET_MS, mediaLatency, parseMetrics, summarizeLatency } from './latency';
+import { TARGET_MS, mediaLatency, parseMetrics, summarizeLatency, yoloModelName } from './latency';
 
 const full = {
   upload: { compressAndExtractMs: 157418, frameExtractMs: 28675, uploadMs: 73 },
@@ -58,4 +58,12 @@ test('tahap klasifikasi kondisi hanya muncul bila Tahap 2 berjalan (ada crop)', 
   assert.equal(withStage.totalMs, 800 + 200 + 10 + 1 + 100 + 40 + 5);
   const noCrops = mediaLatency({ ...base, yolo: { download_ms: 1, inference_ms: 100, stage2_ms: 0, stage2_crops: 0 } })!;
   assert.equal(noCrops.stages.klasifikasi_kondisi, undefined);
+});
+
+test('nama model YOLO dibaca dari metrik; media lama tanpa nama = baseline (null)', () => {
+  assert.equal(yoloModelName(parseMetrics(JSON.stringify({ yolo: { model_name: 'yolo11n_attn_CBAM_seed0', fallback_models: ['sign'] } }))), 'yolo11n_attn_CBAM_seed0');
+  assert.equal(yoloModelName(parseMetrics(JSON.stringify(full))), null); // diproses sebelum varian ada
+  assert.equal(yoloModelName(parseMetrics(JSON.stringify({ yolo: { model_name: '  ' } }))), null);
+  assert.equal(yoloModelName(parseMetrics('bukan json')), null);
+  assert.equal(yoloModelName(null), null);
 });

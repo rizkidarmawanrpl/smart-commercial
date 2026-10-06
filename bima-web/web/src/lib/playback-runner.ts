@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { requireEnv, requireEnvNumber } from '@/lib/env';
 import { localPathForUrl, storageBackend } from '@/lib/media-storage';
+import { parseMetrics, yoloModelName } from '@/lib/latency';
 import { linkTracksToDetections, type PlaybackData, type PlaybackPoint } from '@/lib/playback-tracks';
 
 /** Laju deteksi rapat yang berlaku: dibatasi jumlah frame maksimum; null bila di bawah laju minimum (video terlalu panjang). */
@@ -67,7 +68,7 @@ async function save(mediaAssetId: string, data: { status: string; note?: string 
  * ditautkan ke temuan resmi. Tidak mengubah temuan. Dijalankan di latar belakang setelah deteksi YOLO selesai,
  * atau atas permintaan untuk video lama; kegagalan hanya menandai status playback, bukan media.
  */
-export async function runPlaybackJob(mediaAssetId: string): Promise<void> {
+export async function runPlaybackJob(mediaAssetId: string, modelName?: string | null): Promise<void> {
   const t0 = Date.now();
   try {
     const media = await prisma.mediaAsset.findUnique({
@@ -78,6 +79,10 @@ export async function runPlaybackJob(mediaAssetId: string): Promise<void> {
     if (media.fileType !== 'video') throw new Error('Kotak pemutar hanya untuk video.');
 
     await save(mediaAssetId, { status: 'processing' });
+
+    // Kotak pemutar harus berasal dari model yang sama dengan temuan: dipakai nama dari proses YOLO, atau (permintaan
+    // ulang untuk video lama) nama yang tercatat pada metrik proses media itu.
+    const playbackModel = modelName ?? yoloModelName(parseMetrics(media.processingMetrics));
 
     const cfg = {
       fps: requireEnvNumber('PLAYBACK_FPS'),
@@ -102,6 +107,7 @@ export async function runPlaybackJob(mediaAssetId: string): Promise<void> {
         sample_timestamps: media.frames.map((f) => f.timestampSeconds),
         iou_min: requireEnvNumber('PLAYBACK_IOU_MIN'),
         max_missed: maxMissed,
+        ...(playbackModel ? { model_name: playbackModel } : {}),
       },
       requireEnvNumber('PLAYBACK_POLL_INTERVAL_MS'),
       requireEnvNumber('PLAYBACK_MAX_WAIT_MS')

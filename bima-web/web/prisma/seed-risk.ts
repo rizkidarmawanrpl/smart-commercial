@@ -66,6 +66,14 @@ const CLASS_TEXT: Record<string, { visual: string; condition: string; feasibilit
   },
 };
 
+/** Varian ablasi attention YOLO11n (seed0, imgsz 640). modelName = nama folder bobot di ai-service. */
+const YOLO_ATTENTION_VARIANTS = [
+  { modelName: 'yolo11n_attn_CBAM_seed0', name: 'YOLO11n + CBAM (ablasi attention, seed0)' },
+  { modelName: 'yolo11n_attn_SE_seed0', name: 'YOLO11n + SE (ablasi attention, seed0)' },
+  { modelName: 'yolo11n_attn_ECA_seed0', name: 'YOLO11n + ECA (ablasi attention, seed0)' },
+  { modelName: 'yolo11n_attn_CoordAtt_seed0', name: 'YOLO11n + Coordinate Attention (ablasi attention, seed0)' },
+];
+
 const ZONES = [
   { code: 'ZN-SIM-01', name: 'Jalan Utama Township', zoneType: 'jalan_utama', exposure: 3, description: 'Jalan umum ramai / akses utama township.' },
   { code: 'ZN-SIM-02', name: 'Kawasan Hunian Cluster', zoneType: 'hunian', exposure: 2, description: 'Kawasan hunian.' },
@@ -136,6 +144,17 @@ async function main() {
     });
   }
   console.log(`Model YOLO: ${yolo ? 'sudah ada' : 'dibuat'}${!existingDefault && !yolo ? ' (dijadikan default)' : existingDefault && !yolo ? ' (default saat ini tidak diubah; setel di menu Model AI)' : ''}`);
+
+  // Varian ablasi attention (YOLO11n + modul attention). Baseline di atas tidak diubah; varian TIDAK pernah dijadikan
+  // default oleh seed. Nama model = nama folder bobot di ai-service (lihat ai-service/tools/install_attention_weights.py).
+  let createdVariants = 0;
+  for (const v of YOLO_ATTENTION_VARIANTS) {
+    const exists = await prisma.modelConfig.findFirst({ where: { provider: 'yolo', modelName: v.modelName } });
+    if (exists) continue;
+    await prisma.modelConfig.create({ data: { name: v.name, provider: 'yolo', modelName: v.modelName, isDefault: false, isActive: true } });
+    createdVariants++;
+  }
+  console.log(`Varian YOLO attention: ${YOLO_ATTENTION_VARIANTS.length} (baru dibuat: ${createdVariants}; bukan default)`);
 
   const clips = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'rq3_clips.json'), 'utf-8')) as any[];
   for (const c of clips) {

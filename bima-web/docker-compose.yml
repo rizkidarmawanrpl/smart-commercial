@@ -48,6 +48,10 @@ services:
       SAM3_CHECKPOINT: /weights/sam3_1.pt
       # Provider YOLO (6 model kategori, RQ4): folder bobot di-mount read-only, tidak di-bake ke image.
       YOLO_WEIGHTS_DIR: /weights/yolo
+      # Nama folder bobot di mount bernama "yolo", jadi nama baseline di menu Model AI harus diberi tahu.
+      YOLO_BASELINE_MODEL: yolo11n_seed0
+      # Varian ablasi attention: folder berisi <nama model>/<kategori>-best.pt (mis. yolo11n_attn_CBAM_seed0/banner-best.pt).
+      YOLO_VARIANTS_DIR: /weights/variants
       FFMPEG_PATH: /usr/bin/ffmpeg
       WEB_BASE_URL: http://web:3000
     volumes:
@@ -55,6 +59,7 @@ services:
       - ${SAM3_WEIGHTS_HOST_PATH:?set SAM3_WEIGHTS_HOST_PATH in bima-web/.env (see .env.example)}:/weights/sam3_1.pt:ro
       # Folder berisi <kategori>-best.pt (pavedroad, vegetation, weeds, sign, banner, house_notice). Belum diuji di Docker.
       - ${YOLO_WEIGHTS_HOST_PATH:-./ai-service/models/yolo11n_seed0}:/weights/yolo:ro
+      - ${YOLO_VARIANTS_HOST_PATH:-./ai-service/models}:/weights/variants:ro
     gpus: all
     restart: unless-stopped
     healthcheck:

@@ -401,6 +401,9 @@ export default function AdminModelsPage() {
                     if (e.target.value === 'sam3') {
                       setEndpointUrl('');
                       setModelName(modelFormConfig.defaultSam3ModelName());
+                    } else if (e.target.value === 'yolo') {
+                      setEndpointUrl('');
+                      setModelName('');
                     } else if (e.target.value === 'onpremise') {
                       setEndpointUrl(modelFormConfig.onPremiseEndpointUrl());
                     } else {
@@ -409,6 +412,7 @@ export default function AdminModelsPage() {
                   }}
                   className="w-full px-3 py-2 border border-zinc-200 rounded-md bg-white text-xs sm:text-sm focus:ring-2 focus:ring-brand-green/40 focus:border-zinc-300 focus:outline-none font-medium"
                 >
+                  <option value="yolo">YOLO Lokal (Baseline & varian attention, CPU, tanpa API Key)</option>
                   <option value="sam3">SAM3 Lokal (Segmentasi mask, tanpa API Key)</option>
                   <option value="OpenRouter">OpenRouter (Cloud API)</option>
                   <option value="onpremise">On-Premise (Local Vision Endpoint)</option>
@@ -422,14 +426,23 @@ export default function AdminModelsPage() {
                 <input
                   type="text"
                   required
-                  placeholder={`Contoh: ${modelFormConfig.defaultVlmModelName()}`}
+                  placeholder={provider === 'yolo' ? 'Contoh: yolo11n_attn_CBAM_seed0' : `Contoh: ${modelFormConfig.defaultVlmModelName()}`}
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-200 rounded-md font-mono text-xs sm:text-sm focus:ring-2 focus:ring-brand-green/40 focus:border-zinc-300 focus:outline-none"
                 />
               </div>
 
-              {provider === 'sam3' ? (
+              {provider === 'yolo' ? (
+                <p className="p-3 bg-zinc-50 border border-zinc-200 rounded-md text-[11px] text-zinc-500">
+                  Model Identifier harus sama dengan <strong>nama folder bobot</strong> di ai-service. Baseline:{' '}
+                  <code>yolo11n_seed0</code> (folder <code>YOLO_WEIGHTS_DIR</code>). Varian attention, mis.{' '}
+                  <code>yolo11n_attn_CBAM_seed0</code>, berada di folder yang berdampingan dengan baseline (atau di{' '}
+                  <code>YOLO_VARIANTS_DIR</code>), berisi <code>&lt;kategori&gt;-best.pt</code>. Kategori yang belum punya
+                  bobot varian dilayani baseline, dan setiap temuan mencatat model yang benar-benar menghasilkannya. Gunakan
+                  tombol uji koneksi untuk memeriksa bobotnya. Endpoint dan API Key tidak dipakai.
+                </p>
+              ) : provider === 'sam3' ? (
                 <div className="space-y-3">
                 <p className="p-3 bg-zinc-50 border border-zinc-200 rounded-md text-[11px] text-zinc-500">
                   SAM3 berjalan lokal di ai-service (bobot diatur lewat <code>SAM3_CHECKPOINT</code>). Prompt

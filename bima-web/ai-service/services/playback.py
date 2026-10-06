@@ -77,6 +77,7 @@ def run_playback(
     iou_min: float,
     max_missed: int,
     on_progress: Optional[Callable[[float], None]] = None,
+    model_name: Optional[str] = None,
 ) -> PlaybackResult:
     t_start = time.perf_counter()
     path, tmp = _open_local(video_source)
@@ -104,7 +105,7 @@ def run_playback(
                     ok, frame = cap.retrieve()
                     if ok:
                         t0 = time.perf_counter()
-                        raw, _ = engine.detect(frame)
+                        raw, _ = engine.detect(frame, model_name=model_name)
                         inference_ms += (time.perf_counter() - t0) * 1000.0
                         per_frame.append((wanted[idx], [FrameDetection(d.model_class, (d.x, d.y, d.width, d.height), d.confidence) for d in raw]))
                         if on_progress:
@@ -121,6 +122,7 @@ def run_playback(
             metrics={
                 "frames": len(per_frame),
                 "tracks": len(tracks),
+                "model_name": engine.resolve(model_name)[0],
                 "video_fps": round(video_fps, 3),
                 "duration_seconds": round(duration, 3),
                 "inference_ms": round(inference_ms, 1),

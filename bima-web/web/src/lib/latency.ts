@@ -9,7 +9,7 @@ export const TARGET_MS = 5 * 60 * 1000;
 
 export interface RawMetrics {
   upload?: { compressAndExtractMs?: number; frameExtractMs?: number; uploadMs?: number };
-  yolo?: { download_ms?: number; inference_ms?: number; stage2_ms?: number; stage2_crops?: number; total_ms?: number; per_model_ms?: Record<string, number>; frames?: number };
+  yolo?: { download_ms?: number; inference_ms?: number; stage2_ms?: number; stage2_crops?: number; total_ms?: number; per_model_ms?: Record<string, number>; frames?: number; model_name?: string; fallback_models?: string[] };
   persistMs?: number;
   processTotalMs?: number;
 }
@@ -41,6 +41,12 @@ export function parseMetrics(raw: string | null | undefined): RawMetrics | null 
   } catch {
     return null;
   }
+}
+
+/** Nama model YOLO yang tercatat saat proses (null bila media diproses sebelum varian ada, artinya baseline). */
+export function yoloModelName(m: RawMetrics | null): string | null {
+  const name = m?.yolo?.model_name;
+  return typeof name === 'string' && name.trim() !== '' ? name : null;
 }
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);

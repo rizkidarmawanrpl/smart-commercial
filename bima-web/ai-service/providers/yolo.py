@@ -51,6 +51,7 @@ def to_detection_items(
                 frame_index=frame_index,
                 condition_state=state,
                 condition_model=STAGE2_MODEL_ID if state else None,
+                served_by=d.served_by or None,
             )
         )
     return items
@@ -62,7 +63,7 @@ def wants_condition_stage(active_classes: List[ClassDef]) -> bool:
 
 
 class YoloProvider(BaseVisionProvider):
-    """Deteksi objek lokal (CPU) dari weight yolo11n_seed0. Memenuhi kontrak provider yang sama dengan VLM."""
+    """Deteksi objek lokal (CPU): baseline yolo11n_seed0 atau varian ablasi sesuai nama model. Kontrak provider sama dengan VLM."""
 
     def __init__(self, config: ModelConfigPayload):
         super().__init__(config)
@@ -75,9 +76,9 @@ class YoloProvider(BaseVisionProvider):
         frame_index: Optional[int] = None,
     ) -> DetectionSchema:
         img = decode_image(image_base64)
-        raw, _ = await asyncio.to_thread(engine.detect, img)
+        raw, _ = await asyncio.to_thread(engine.detect, img, None, self.config.model_name)
         conditions = await asyncio.to_thread(classify_signs, img, raw) if wants_condition_stage(active_classes) else None
         return DetectionSchema(detections=to_detection_items(raw, active_classes, timestamp_seconds, frame_index, conditions))
 
     async def test_connection(self) -> bool:
-        return bool(engine.status()["present"])
+        return bool(engine.status(self.config.model_name)["present"])

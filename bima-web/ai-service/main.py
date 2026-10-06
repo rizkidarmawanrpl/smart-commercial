@@ -190,7 +190,7 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
         use_stage2 = wants_condition_stage(req.active_classes)
 
         # Muat model lebih dulu agar waktu muat tidak tercampur ke metrik unduh/inferensi.
-        await asyncio.to_thread(yolo_engine.load)
+        model_set = await asyncio.to_thread(yolo_engine.load, req.model_name)
         if use_stage2:
             await asyncio.to_thread(sign_classifier.load)  # galat konfigurasi muncul di sini, bukan di tengah proses
 
@@ -202,7 +202,7 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
                 download_ms += (time.perf_counter() - t0) * 1000.0
 
                 t1 = time.perf_counter()
-                raw, timings = await asyncio.to_thread(yolo_engine.detect, img)
+                raw, timings = await asyncio.to_thread(yolo_engine.detect, img, None, req.model_name)
                 inference_ms += (time.perf_counter() - t1) * 1000.0
                 for k, v in timings.per_model_ms.items():
                     per_model[k] = per_model.get(k, 0.0) + v
@@ -236,7 +236,9 @@ async def yolo_detect(req: YoloDetectRequest, _: bool = Depends(verify_internal_
                 stage2_crops=stage2_crops,
                 stage2_model=STAGE2_MODEL_ID if use_stage2 else None,
                 detections_by_class=by_class,
-                missing_models=yolo_engine.missing_categories,
+                missing_models=model_set.missing,
+                model_name=model_set.name,
+                fallback_models=model_set.fallback,
                 device=yolo_engine.device,
                 conf=conf,
             ),
@@ -262,10 +264,11 @@ def _run_playback_job_bg(job_id: str, req: PlaybackRequest):
 
     set_state(status="running")
     try:
-        yolo_engine.load()
+        yolo_engine.load(req.model_name)
         result = run_playback(
             req.video_url, req.fps, req.sample_timestamps, req.iou_min, req.max_missed,
             on_progress=lambda p: set_state(progress=round(p, 3)),
+            model_name=req.model_name,
         )
         payload = PlaybackResponse(
             success=True,
@@ -330,17 +333,20 @@ async def test_connection(
     if (req.ai_model_config.provider or "").lower() == "yolo":
         from services.yolo_engine import engine as yolo_engine
         try:
-            st = yolo_engine.status()
+            st = yolo_engine.status(req.ai_model_config.model_name)
         except RuntimeError as e:
             return TestConnectionResponse(success=False, message=str(e),
                                           latency_ms=round((time.time() - start_time) * 1000, 2))
         s2 = sign_classifier.status()
+        label = st["model_name"]
         if not st["present"]:
-            msg = f"Tidak ada bobot YOLO di {st['weights_dir']}."
+            msg = f"Tidak ada bobot YOLO untuk '{label}' di {st['weights_dir']}."
         elif st["missing"]:
-            msg = f"Bobot YOLO belum lengkap, hilang: {', '.join(st['missing'])}."
+            msg = f"Bobot YOLO '{label}' belum lengkap, hilang: {', '.join(st['missing'])}."
         else:
-            msg = f"YOLO siap: {len(st['present'])} model ({', '.join(st['present'])})."
+            msg = f"YOLO '{label}' siap: {len(st['present'])} model ({', '.join(st['present'])})."
+            if st["fallback"]:
+                msg += f" Kategori {', '.join(st['fallback'])} belum punya bobot varian ini dan dilayani baseline."
         msg += (" Tahap 2 rambu: siap." if s2["enabled"] and s2["present"] else " Tahap 2 rambu: bobot tidak ditemukan." if s2["enabled"] else " Tahap 2 rambu: nonaktif.")
         return TestConnectionResponse(success=bool(st["present"]), message=msg,
                                       latency_ms=round((time.time() - start_time) * 1000, 2))

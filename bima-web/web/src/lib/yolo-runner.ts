@@ -80,6 +80,8 @@ export async function runYoloJob(params: {
         has_condition_stage: c.hasConditionStage,
       })),
       conflict_threshold: requireEnvNumber('DEFAULT_CONFLICT_IOU_THRESHOLD'),
+      // Nama model dari menu Model AI: ai-service memilih baseline atau varian ablasi (attention) berdasarkan nama ini.
+      model_name: modelName,
     };
 
     const res = await fetch(`${FASTAPI_SERVICE_URL}/api/v1/yolo/detect`, {
@@ -133,7 +135,8 @@ export async function runYoloJob(params: {
             frameIndex: det.frame_index,
             locationGeojson: media.session.locationGeojson ?? null,
             modelConfigId: modelConfigId || null,
-            modelName,
+            // Model yang benar-benar menghasilkan kotak: kategori yang belum punya bobot varian dilayani baseline.
+            modelName: det.served_by || modelName,
             promptVersion: 'yolo',
             severity: risk.severity,
             severitySource: risk.severitySource,
@@ -175,7 +178,7 @@ export async function runYoloJob(params: {
     });
 
     // Kotak pemutar (deteksi rapat) dibuat di latar belakang; media sudah "completed" dan dapat ditinjau tanpa menunggu.
-    if (media.fileType === 'video') void runPlaybackJob(media.id);
+    if (media.fileType === 'video') void runPlaybackJob(media.id, modelName);
   } catch (err: any) {
     console.error('YOLO job error:', err);
     await markFailed(mediaAssetId, `YOLO Error: ${err.message}`);

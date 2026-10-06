@@ -22,6 +22,7 @@ class DetectionItem(BaseModel):
     conflict_details: Optional[Dict[str, Any]] = None
     condition_state: Optional[str] = None  # Tahap 2: "normal" | "damaged"; None = tidak diklasifikasi
     condition_model: Optional[str] = None  # model Tahap 2 yang menghasilkan condition_state
+    served_by: Optional[str] = None  # nama model YOLO (baseline/varian) yang benar-benar menghasilkan kotak ini
 
 class DetectionSchema(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
@@ -103,6 +104,7 @@ class YoloDetectRequest(BaseModel):
     frames: List[FrameInput] = Field(..., min_length=1, max_length=64)
     active_classes: List[ClassDef]
     conflict_threshold: float
+    model_name: Optional[str] = None  # nama model dari menu Model AI; kosong = baseline (YOLO_WEIGHTS_DIR)
 
 class YoloDetectMetrics(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
@@ -116,6 +118,8 @@ class YoloDetectMetrics(BaseModel):
     stage2_crops: int = 0  # jumlah crop yang diklasifikasi
     stage2_model: Optional[str] = None  # None bila Tahap 2 tidak aktif
     missing_models: List[str] = Field(default_factory=list)
+    model_name: Optional[str] = None  # model yang benar-benar dipakai (baseline atau varian)
+    fallback_models: List[str] = Field(default_factory=list)  # kategori yang dilayani baseline karena varian belum punya bobot
     device: Optional[str] = None
     conf: float
 
@@ -136,6 +140,7 @@ class PlaybackRequest(BaseModel):
     sample_timestamps: List[float] = Field(default_factory=list)  # waktu frame sampel; ikut dideteksi agar bisa ditautkan ke temuan resmi
     iou_min: float = Field(..., gt=0, le=1)  # ambang IoU pencocokan antar-frame
     max_missed: int = Field(..., ge=0)  # frame berturut-turut tanpa pasangan sebelum lintasan ditutup
+    model_name: Optional[str] = None  # sama dengan model yang menghasilkan temuan; kosong = baseline
 
 class PlaybackTrackOut(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
