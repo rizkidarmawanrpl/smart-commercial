@@ -155,7 +155,8 @@ def test_installer_skips_unknown_category(tmp_path, capsys):
 WEIGHTS = os.environ.get("YOLO_WEIGHTS_DIR")
 SAMPLES = os.environ.get("YOLO_SAMPLE_DIR")  # folder berisi <kategori>/<kategori>.jpg
 VARIANTS = ["yolo11n_attn_CBAM_seed0", "yolo11n_attn_SE_seed0", "yolo11n_attn_ECA_seed0", "yolo11n_attn_CoordAtt_seed0"]
-HAVE = ["banner", "house_notice", "pavedroad"]
+ALL = list(CATEGORY_MODELS)
+PARTIAL = ["banner", "house_notice", "pavedroad"]  # varian parsial buatan untuk menguji fallback ke baseline
 
 
 def _variants_ready():
@@ -167,8 +168,8 @@ def _variants_ready():
         return False
     base = WEIGHTS if os.path.isabs(WEIGHTS) else os.path.join(os.path.dirname(os.path.abspath(__file__)), WEIGHTS)
     parent = os.path.dirname(base.rstrip("/\\"))
-    return all(os.path.isfile(os.path.join(parent, v, f"{c}-best.pt")) for v in VARIANTS for c in HAVE) and all(
-        os.path.isfile(os.path.join(base, f"{c}-best.pt")) for c in CATEGORY_MODELS
+    return all(os.path.isfile(os.path.join(parent, v, f"{c}-best.pt")) for v in VARIANTS for c in ALL) and all(
+        os.path.isfile(os.path.join(base, f"{c}-best.pt")) for c in ALL
     )
 
 
@@ -178,34 +179,72 @@ def real_env(monkeypatch):
     monkeypatch.setenv("YOLO_DEVICE", "cpu")
 
 
+@pytest.fixture
+def partial_variants(tmp_path, monkeypatch):
+    """Folder varian berisi hanya 3 kategori (tautan ke bobot nyata), agar jalur fallback tetap teruji setelah semua kategori lengkap."""
+    base = WEIGHTS if os.path.isabs(WEIGHTS) else os.path.join(os.path.dirname(os.path.abspath(__file__)), WEIGHTS)
+    real_parent = os.path.dirname(base.rstrip("/\\"))
+    for v in VARIANTS:
+        (tmp_path / v).mkdir()
+        for c in PARTIAL:
+            os.symlink(os.path.join(real_parent, v, f"{c}-best.pt"), tmp_path / v / f"{c}-best.pt")
+    monkeypatch.setenv("YOLO_VARIANTS_DIR", str(tmp_path))
+    from services.yolo_engine import engine as shared_engine
+
+    monkeypatch.setattr(shared_engine, "_sets", {})  # cache singleton (dipakai main.app) berkunci nama model, bukan folder
+    return tmp_path
+
+
 @pytest.mark.skipif(not _variants_ready(), reason="bobot baseline/varian atau ultralytics tidak tersedia")
 @pytest.mark.parametrize("variant", VARIANTS)
-def test_real_variant_loads_with_baseline_class_names_and_fallback(variant, real_env):
+def test_real_variant_has_all_six_categories_with_baseline_class_names(variant, real_env):
     eng = YoloEngine()
     base = eng.load(None)
     ms = eng.load(variant)
-    assert sorted(ms.own) == sorted(HAVE)
-    assert set(ms.fallback) == set(CATEGORY_MODELS) - set(HAVE) and ms.missing == []
-    for cat in HAVE:  # nama kelas sama dengan baseline, sehingga pemetaan ke ClassDefinition tidak berubah
+    assert sorted(ms.own) == sorted(ALL) and ms.fallback == [] and ms.missing == []
+    for cat in ALL:  # nama kelas sama dengan baseline, sehingga pemetaan ke ClassDefinition tidak berubah
         assert ms.models[cat].names == base.models[cat].names
         assert ms.models[cat] is not base.models[cat]
+
+
+@pytest.mark.skipif(not _variants_ready(), reason="bobot baseline/varian atau ultralytics tidak tersedia")
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_real_partial_variant_falls_back_to_the_same_baseline_models(variant, real_env, partial_variants):
+    eng = YoloEngine()
+    base = eng.load(None)
+    ms = eng.load(variant)
+    assert sorted(ms.own) == sorted(PARTIAL)
+    assert set(ms.fallback) == set(ALL) - set(PARTIAL) and ms.missing == []
     for cat in ms.fallback:  # fallback memakai objek model baseline yang sama, bukan salinan
         assert ms.models[cat] is base.models[cat]
 
 
 @pytest.mark.skipif(not (_variants_ready() and SAMPLES), reason="bobot atau YOLO_SAMPLE_DIR tidak tersedia")
 @pytest.mark.parametrize("variant", VARIANTS)
-@pytest.mark.parametrize("category,expected", [("banner", "banner"), ("house_notice", "house_notice"), ("pavedroad", "pavedroad_pothole"), ("sign", "sign")])  # sign = kategori fallback ke baseline
+@pytest.mark.parametrize(
+    "category,expected",
+    [("banner", "banner"), ("house_notice", "house_notice"), ("pavedroad", "pavedroad_pothole"), ("sign", "sign"), ("weeds", "weeds")],
+)
 def test_real_variant_detects_expected_class_on_sample(variant, category, expected, real_env):
     import cv2
 
     img = cv2.imread(os.path.join(SAMPLES, category, f"{category}.jpg"))
     assert img is not None
     dets, timings = YoloEngine().detect(img, model_name=variant)
-    assert set(timings.per_model_ms) == set(CATEGORY_MODELS)  # kategori fallback ikut berjalan
-    assert {d.served_by for d in dets if d.source_model in HAVE} <= {variant}  # kotak varian tercatat atas nama varian
-    assert {d.served_by for d in dets if d.source_model not in HAVE} <= {"yolo11n_seed0"}  # kategori fallback atas nama baseline
+    assert set(timings.per_model_ms) == set(CATEGORY_MODELS)
     assert expected in {d.model_class for d in dets if d.source_model == category}
+    assert {d.served_by for d in dets} == {variant}  # semua kotak tercatat atas nama varian
+
+
+@pytest.mark.skipif(not (_variants_ready() and SAMPLES), reason="bobot atau YOLO_SAMPLE_DIR tidak tersedia")
+@pytest.mark.parametrize("variant", VARIANTS[:1])
+def test_real_partial_variant_records_baseline_as_server_of_fallback_boxes(variant, real_env, partial_variants):
+    import cv2
+
+    img = cv2.imread(os.path.join(SAMPLES, "sign", "sign.jpg"))  # sign tidak ada di varian parsial -> baseline
+    dets, _ = YoloEngine().detect(img, model_name=variant)
+    sign = [d for d in dets if d.source_model == "sign"]
+    assert sign and {d.served_by for d in sign} == {"yolo11n_seed0"}
 
 
 @pytest.mark.skipif(not _variants_ready(), reason="bobot baseline/varian atau ultralytics tidak tersedia")
@@ -232,21 +271,23 @@ def _body(sample, model_name=None):
     return body
 
 
-@pytest.mark.skipif(not (_variants_ready() and SAMPLES), reason="bobot atau YOLO_SAMPLE_DIR tidak tersedia")
-def test_real_endpoint_reports_variant_and_fallback_and_keeps_baseline(real_env):
+def _client_and_headers():
     from fastapi.testclient import TestClient
     import main
 
-    client = TestClient(main.app)
-    headers = {"X-Internal-Secret": os.environ["INTERNAL_API_SECRET"]}
+    return TestClient(main.app), {"X-Internal-Secret": os.environ["INTERNAL_API_SECRET"]}
+
+
+@pytest.mark.skipif(not (_variants_ready() and SAMPLES), reason="bobot atau YOLO_SAMPLE_DIR tidak tersedia")
+def test_real_endpoint_reports_variant_and_keeps_baseline(real_env):
+    client, headers = _client_and_headers()
     sample = os.path.join(SAMPLES, "banner", "banner.jpg")
 
     attn = client.post("/api/v1/yolo/detect", json=_body(sample, "yolo11n_attn_CBAM_seed0"), headers=headers).json()
     assert attn["success"], attn
-    assert attn["metrics"]["model_name"] == "yolo11n_attn_CBAM_seed0"
-    assert set(attn["metrics"]["fallback_models"]) == set(CATEGORY_MODELS) - set(HAVE)
-    assert any(d["class_name"] == "banner" for d in attn["detections"])
-    assert all(d["served_by"] == "yolo11n_attn_CBAM_seed0" for d in attn["detections"] if d["class_name"] == "banner")  # kategori punya bobot varian
+    assert attn["metrics"]["model_name"] == "yolo11n_attn_CBAM_seed0" and attn["metrics"]["fallback_models"] == []
+    banners = [d for d in attn["detections"] if d["class_name"] == "banner"]
+    assert banners and all(d["served_by"] == "yolo11n_attn_CBAM_seed0" for d in banners)
 
     base = client.post("/api/v1/yolo/detect", json=_body(sample), headers=headers).json()  # tanpa model_name = baseline
     assert base["success"], base
@@ -260,4 +301,19 @@ def test_real_endpoint_reports_variant_and_fallback_and_keeps_baseline(real_env)
         json={"ai_model_config": {"provider": "yolo", "model_name": "yolo11n_attn_CBAM_seed0"}},
         headers=headers,
     ).json()
-    assert conn["success"] and "yolo11n_attn_CBAM_seed0" in conn["message"] and "dilayani baseline" in conn["message"]
+    assert conn["success"] and "yolo11n_attn_CBAM_seed0" in conn["message"] and "dilayani baseline" not in conn["message"]
+
+
+@pytest.mark.skipif(not (_variants_ready() and SAMPLES), reason="bobot atau YOLO_SAMPLE_DIR tidak tersedia")
+def test_real_endpoint_reports_fallback_for_partial_variant(real_env, partial_variants):
+    client, headers = _client_and_headers()
+    sample = os.path.join(SAMPLES, "banner", "banner.jpg")
+    r = client.post("/api/v1/yolo/detect", json=_body(sample, "yolo11n_attn_CBAM_seed0"), headers=headers).json()
+    assert r["success"], r
+    assert set(r["metrics"]["fallback_models"]) == set(ALL) - set(PARTIAL)
+    conn = client.post(
+        "/api/v1/test-connection",
+        json={"ai_model_config": {"provider": "yolo", "model_name": "yolo11n_attn_CBAM_seed0"}},
+        headers=headers,
+    ).json()
+    assert conn["success"] and "dilayani baseline" in conn["message"]
